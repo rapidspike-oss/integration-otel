@@ -1,0 +1,57 @@
+# RapidSpike HTTP Monitor Metrics (HMAC Auth)
+# -------------------------------------------
+# Fetches response time and success metrics from a specific RapidSpike HTTP monitor.
+#
+# Authentication:
+#   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
+#   - Alternative: use a manually pre-signed URL for short-term testing.
+#
+# Environment variables:
+#   RAPIDSPIKE_PROXY_URL     -> (Optional) your signed proxy endpoint base, e.g. https://proxy.example.com
+#   RAPIDSPIKE_BASE_URL      -> (Optional) defaults to https://api.rapidspike.com
+#   RAPIDSPIKE_PUBLIC_KEY    -> Your RapidSpike public key
+#   RAPIDSPIKE_PRIVATE_KEY   -> Your RapidSpike private key (used only by proxy or pre-sign script)
+
+receivers:
+  rapidspike_httpmon:
+    # Option A — Recommended: use a signed proxy that performs HMAC signing
+    endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/httpmonitors/{{monitor-uuid}}/latest"
+    method: GET
+    collection_interval: 60s
+
+    # Option B — Pre-Signed URL (uncomment below to test manually)
+    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/httpmonitors/{{monitor-uuid}}/latest?public_key=...&time=...&signature=..."
+
+    parsing:
+      json:
+        path: "data.latest"
+        metrics:
+          - name: rapidspike.uptime.response_time_ms
+            type: gauge
+            value_field: "response_time"
+            attributes:
+              location: "location"
+              country: "country_code"
+          - name: rapidspike.uptime.success
+            type: gauge
+            value_field: "success"
+            attributes:
+              location: "location"
+              country: "country_code"
+
+processors:
+  batch:
+    timeout: 30s
+
+exporters:
+  otlphttp:
+    endpoint: "https://otel.rapidspike.com/v1/metrics"
+    headers:
+      "x-api-key": "${RAPIDSPIKE_PUBLIC_KEY}"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [ rapidspike_httpmon ]
+      processors: [ batch ]
+      exporters: [ otlphttp ]

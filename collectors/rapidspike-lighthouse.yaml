@@ -1,0 +1,73 @@
+# RapidSpike Lighthouse Monitor Metrics (HMAC Auth)
+# -------------------------------------------------
+# Fetches performance, SEO, accessibility, and PWA scores from Lighthouse test results.
+#
+# Authentication:
+#   - Recommended: call via a proxy endpoint that injects signed HMAC headers or query parameters.
+#   - Alternative: use a manually pre-signed URL with HMAC query parameters.
+#
+# Replace {{page-uuid}} with your Page ID.
+
+receivers:
+  rapidspike_lighthouse:
+    # Option A — Signed Proxy (recommended)
+    endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/pages/{{page-uuid}}/monitors/lighthousetest/results?device=desktop&region=eu-west-1&limit=1000"
+
+    # Option B — Pre-Signed URL (manual)
+    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/pages/{{page-uuid}}/monitors/lighthousetest/results?...&public_key=...&time=...&signature=..."
+
+    method: GET
+    collection_interval: 6h
+
+    parsing:
+      json:
+        path: "data.results"
+        metrics:
+          - name: rapidspike.lighthouse.performance
+            type: gauge
+            value_field: "scores.performance"
+            attributes:
+              region: "test.region"
+              device: "test.device"
+              location: "test.location"
+          - name: rapidspike.lighthouse.accessibility
+            type: gauge
+            value_field: "scores.accessibility"
+            attributes:
+              region: "test.region"
+              device: "test.device"
+          - name: rapidspike.lighthouse.seo
+            type: gauge
+            value_field: "scores.seo"
+            attributes:
+              region: "test.region"
+              device: "test.device"
+          - name: rapidspike.lighthouse.pwa
+            type: gauge
+            value_field: "scores.pwa"
+            attributes:
+              region: "test.region"
+              device: "test.device"
+          - name: rapidspike.lighthouse.best_practices
+            type: gauge
+            value_field: "scores.best_practices"
+            attributes:
+              region: "test.region"
+              device: "test.device"
+
+processors:
+  batch:
+    timeout: 30s
+
+exporters:
+  otlphttp:
+    endpoint: "https://otel.rapidspike.com/v1/metrics"
+    headers:
+      "x-api-key": "${RAPIDSPIKE_PUBLIC_KEY}"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [ rapidspike_lighthouse ]
+      processors: [ batch ]
+      exporters: [ otlphttp ]

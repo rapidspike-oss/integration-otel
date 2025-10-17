@@ -1,0 +1,25 @@
+# RapidSpike Base OpenTelemetry Collector
+# ---------------------------------------
+# This base configuration provides a simple OTLP input/output pipeline.
+# Extend or combine this with RapidSpike monitor receiver blocks.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+      grpc:
+
+processors:
+  batch:
+    timeout: 10s
+
+exporters:
+  logging:
+    loglevel: info
+
+service:
+  pipelines:
+    metrics:
+      receivers: [ otlp ]
+      processors: [ batch ]
+      exporters: [ logging ]

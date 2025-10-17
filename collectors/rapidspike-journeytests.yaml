@@ -1,0 +1,98 @@
+# RapidSpike User Journey Metrics (HMAC Authentication)
+# Fetches journey test results including timings, errors, and pass/fail state.
+# Replace {{journey-uuid}} with your Journey ID.
+# Supports either pre-signed URLs or proxy-based HMAC signing.
+
+receivers:
+  rapidspike_journey:
+    # Option 1 – Proxy that auto-signs requests:
+    # endpoint: "https://proxy.yourdomain.com/journey/results"
+    #
+    # Option 2 – Pre-signed URL (generated with your HMAC script):
+    endpoint: "${RAPIDSPIKE_BASE_URL}/v1/journeys/{{journey-uuid}}/samples?page=1&per_page=1&regions=&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+    method: GET
+    collection_interval: 5m
+    parsing:
+      json:
+        path: "data.samples"
+        metrics:
+          - name: rapidspike.journey.total_time_ms
+            type: gauge
+            value_field: "TotalTime"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+              comment: "Comment"
+          - name: rapidspike.journey.step_time_ms
+            type: gauge
+            value_field: "StepTime"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+          - name: rapidspike.journey.dom_time_ms
+            type: gauge
+            value_field: "DomTime"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+          - name: rapidspike.journey.load_time_ms
+            type: gauge
+            value_field: "LoadTime"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+          - name: rapidspike.journey.render_time_ms
+            type: gauge
+            value_field: "RenderTime"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+          - name: rapidspike.journey.errors_total
+            type: gauge
+            value_field: "ErrorsCount"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+          - name: rapidspike.journey.error_breakdown_total
+            type: gauge
+            value_field: "ErrorBreakdown.total"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+          - name: rapidspike.journey.error_breakdown_errors
+            type: gauge
+            value_field: "ErrorBreakdown.errors"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+          - name: rapidspike.journey.error_breakdown_warnings
+            type: gauge
+            value_field: "ErrorBreakdown.warnings"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+          - name: rapidspike.journey.error_breakdown_failures
+            type: gauge
+            value_field: "ErrorBreakdown.failures"
+            attributes:
+              region: "RunRegionData.label"
+              browser: "Browser"
+
+processors:
+  batch:
+    timeout: 30s
+  resourcedetection:
+    detectors: [ env, system ]
+
+exporters:
+  otlphttp:
+    endpoint: "https://otel.rapidspike.com/v1/metrics"
+    headers:
+      x-api-key: "${RAPIDSPIKE_PUBLIC_KEY}"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [ rapidspike_journey ]
+      processors: [ batch, resourcedetection ]
+      exporters: [ otlphttp ]

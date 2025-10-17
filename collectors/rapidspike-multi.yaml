@@ -1,0 +1,66 @@
+# Combined RapidSpike OTel Collector Configuration (HMAC Authentication)
+# Collects metrics from both HTTP and Lighthouse monitors.
+
+receivers:
+  rapidspike_httpmon:
+    endpoint: "${RAPIDSPIKE_BASE_URL}/v1/httpmonitors/{{monitor-uuid}}/latest?public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+    method: GET
+    collection_interval: 60s
+    parsing:
+      json:
+        path: "data.latest"
+        metrics:
+          - name: rapidspike.uptime.response_time_ms
+            type: gauge
+            value_field: "response_time"
+            attributes:
+              location: "location"
+              country: "country_code"
+
+  rapidspike_lighthouse:
+    endpoint: "${RAPIDSPIKE_BASE_URL}/v1/pages/{{page-uuid}}/monitors/lighthousetest/results?start_date=10 days ago&end_date=now&order_by=time&order=desc&device=desktop&region=eu-west-1&limit=1000&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+    method: GET
+    collection_interval: 6h
+    parsing:
+      json:
+        path: "data.results"
+        metrics:
+          - name: rapidspike.lighthouse.performance
+            type: gauge
+            value_field: "scores.performance"
+            attributes:
+              region: "test.region"
+              device: "test.device"
+rapidspike_journey:
+  endpoint: "${RAPIDSPIKE_BASE_URL}/v1/journeys/{{journey-uuid}}/samples?page=1&per_page=1&regions=&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+  method: GET
+  collection_interval: 5m
+  parsing:
+    json:
+      path: "data.samples"
+      metrics:
+        - name: rapidspike.journey.total_time_ms
+          type: gauge
+          value_field: "TotalTime"
+          attributes:
+            region: "RunRegionData.label"
+            browser: "Browser"
+
+processors:
+  batch:
+    timeout: 30s
+  resourcedetection:
+    detectors: [ env, system ]
+
+exporters:
+  otlphttp:
+    endpoint: "https://otel.rapidspike.com/v1/metrics"
+    headers:
+      x-api-key: "${RAPIDSPIKE_PUBLIC_KEY}"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [ rapidspike_httpmon, rapidspike_lighthouse, rapidspike_journey ]
+      processors: [ batch, resourcedetection ]
+      exporters: [ otlphttp ]
