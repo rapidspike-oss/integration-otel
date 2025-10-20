@@ -1,17 +1,30 @@
-# RapidSpike User Journey Metrics (HMAC Authentication)
+# RapidSpike User Journey -> One Journey Results
+# -------------------------------------------
 # Fetches journey test results including timings, errors, and pass/fail state.
 # Replace {{journey-uuid}} with your Journey ID.
-# Supports either pre-signed URLs or proxy-based HMAC signing.
+#
+# Authentication:
+#   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
+#   - Alternative: use a manually pre-signed URL for short-term testing.
+#
+# Environment variables:
+#   RAPIDSPIKE_PROXY_URL     -> (Optional) your signed proxy endpoint base, e.g. https://proxy.example.com
+#   RAPIDSPIKE_BASE_URL      -> (Optional) defaults to https://api.rapidspike.com
+#   RAPIDSPIKE_PUBLIC_KEY    -> Your RapidSpike public key
+#   RAPIDSPIKE_PRIVATE_KEY   -> Your RapidSpike private key (used only by proxy or pre-sign script)
 
 receivers:
   rapidspike_journey:
-    # Option 1 – Proxy that auto-signs requests:
-    # endpoint: "https://proxy.yourdomain.com/journey/results"
-    #
+
+    # Option 1 – Recommended: use a signed proxy that performs HMAC signing
+    endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/journeys/{{journey-uuid}}/samples?page=1&per_page=1"
+
     # Option 2 – Pre-signed URL (generated with your HMAC script):
-    endpoint: "${RAPIDSPIKE_BASE_URL}/v1/journeys/{{journey-uuid}}/samples?page=1&per_page=1&regions=&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/journeys/{{journey-uuid}}/samples?page=1&per_page=1&regions=&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+
     method: GET
     collection_interval: 5m
+
     parsing:
       json:
         path: "data.samples"

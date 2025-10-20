@@ -1,0 +1,80 @@
+# RapidSpike HTTP Monitor -> One Monitor Status Events
+# -------------------------------------------
+# Fetches recent status change events for a specific HTTP monitor.
+# Replace {{monitor-uuid}} with your Monitor ID.
+#
+# Authentication:
+#   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
+#   - Alternative: use a manually pre-signed URL for short-term testing.
+#
+# Environment variables:
+#   RAPIDSPIKE_PROXY_URL     -> (Optional) your signed proxy endpoint base, e.g. https://proxy.example.com
+#   RAPIDSPIKE_BASE_URL      -> (Optional) defaults to https://api.rapidspike.com
+#   RAPIDSPIKE_PUBLIC_KEY    -> Your RapidSpike public key
+#   RAPIDSPIKE_PRIVATE_KEY   -> Your RapidSpike private key (used only by proxy or pre-sign script)
+
+receivers:
+  rapidspike_httpmon:
+
+    # Option 1 — Recommended: use a signed proxy that performs HMAC signing
+    endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/httpmonitors/{{monitor-uuid}}/statuses"
+
+    # Option 2 — Pre-Signed URL (generated with your HMAC script):
+    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/httpmonitors/{{monitor-uuid}}/statuses?public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+
+    method: GET
+    collection_interval: 15m
+
+    parsing:
+      json:
+        path: "data.events"
+        metrics:
+          - name: rapidspike.httpmon.status_change
+            type: gauge
+            value_field: "status"
+            mapping:
+              passing: 1
+              failing: 0
+            attributes:
+              monitor_uuid: "monitor.uuid"
+              website_uuid: "website.uuid"
+              created_date: "created_date"
+              unix_created_date: "unix_created_date"
+          - name: rapidspike.httpmon.notification_sent
+            type: gauge
+            value_field: "notification_sent"
+            attributes:
+              monitor_uuid: "monitor.uuid"
+              website_uuid: "website.uuid"
+              created_date: "created_date"
+              unix_created_date: "unix_created_date"
+          - name: rapidspike.httpmon.region_count
+            type: gauge
+            value_field: "monitor.test_regions[*].id"
+            aggregation: count
+            attributes:
+              monitor_uuid: "monitor.uuid"
+              website_uuid: "website.uuid"
+              created_date: "created_date"
+
+    processors:
+      batch:
+        timeout: 30s
+      resourcedetection:
+        detectors: [ env, system ]
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:9464"
+      # Example alternate exporters:
+      # otlphttp:
+      #   endpoint: "https://otlp-gateway.grafana.net/otlp"
+      #   headers:
+      #     Authorization: "Bearer ${GRAFANA_CLOUD_API_KEY}"
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [ rapidspike_httpmon_statuses ]
+          processors: [ batch, resourcedetection ]
+          exporters: [ prometheus ]

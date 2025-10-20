@@ -1,6 +1,7 @@
-# RapidSpike HTTP Monitor Metrics (HMAC Auth)
+# RapidSpike HTTP Monitor -> One Monitor Results
 # -------------------------------------------
 # Fetches response time and success metrics from a specific RapidSpike HTTP monitor.
+# Replace {{monitor-uuid}} with your Monitor ID.
 #
 # Authentication:
 #   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
@@ -14,13 +15,15 @@
 
 receivers:
   rapidspike_httpmon:
-    # Option A — Recommended: use a signed proxy that performs HMAC signing
+
+    # Option 1 — Recommended: use a signed proxy that performs HMAC signing
     endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/httpmonitors/{{monitor-uuid}}/latest"
+
+    # Option 2 — Pre-Signed URL (generated with your HMAC script):
+    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/httpmonitors/{{monitor-uuid}}/latest?public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+
     method: GET
     collection_interval: 60s
-
-    # Option B — Pre-Signed URL (uncomment below to test manually)
-    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/httpmonitors/{{monitor-uuid}}/latest?public_key=...&time=...&signature=..."
 
     parsing:
       json:

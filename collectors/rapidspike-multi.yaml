@@ -1,5 +1,5 @@
-# Combined RapidSpike OTel Collector Configuration (HMAC Authentication)
-# Collects metrics from both HTTP and Lighthouse monitors.
+# Combined RapidSpike OTel Collector Configuration (example)
+# Collects results from HTTP, Journey and Lighthouse monitors.
 
 receivers:
   rapidspike_httpmon:

@@ -1,20 +1,26 @@
-# RapidSpike Lighthouse Monitor Metrics (HMAC Auth)
+# RapidSpike Lighthouse -> One Monitor Results
 # -------------------------------------------------
 # Fetches performance, SEO, accessibility, and PWA scores from Lighthouse test results.
+# Replace {{page-uuid}} with your Page ID.
 #
 # Authentication:
-#   - Recommended: call via a proxy endpoint that injects signed HMAC headers or query parameters.
-#   - Alternative: use a manually pre-signed URL with HMAC query parameters.
+#   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
+#   - Alternative: use a manually pre-signed URL for short-term testing.
 #
-# Replace {{page-uuid}} with your Page ID.
+# Environment variables:
+#   RAPIDSPIKE_PROXY_URL     -> (Optional) your signed proxy endpoint base, e.g. https://proxy.example.com
+#   RAPIDSPIKE_BASE_URL      -> (Optional) defaults to https://api.rapidspike.com
+#   RAPIDSPIKE_PUBLIC_KEY    -> Your RapidSpike public key
+#   RAPIDSPIKE_PRIVATE_KEY   -> Your RapidSpike private key (used only by proxy or pre-sign script)
 
 receivers:
   rapidspike_lighthouse:
-    # Option A — Signed Proxy (recommended)
+
+    # Option 1 — Recommended: use a signed proxy that performs HMAC signing
     endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/pages/{{page-uuid}}/monitors/lighthousetest/results?device=desktop&region=eu-west-1&limit=1000"
 
-    # Option B — Pre-Signed URL (manual)
-    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/pages/{{page-uuid}}/monitors/lighthousetest/results?...&public_key=...&time=...&signature=..."
+    # Option 2 — Pre-signed URL (generated with your HMAC script):
+    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/pages/{{page-uuid}}/monitors/lighthousetest/results?&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
 
     method: GET
     collection_interval: 6h

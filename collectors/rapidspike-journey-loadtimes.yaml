@@ -1,0 +1,104 @@
+# RapidSpike User Journey -> One Journey Load Times
+# -------------------------------------------
+# Fetches journey load time results over a specified time range (e.g., last 24 hours)
+# Replace {{journey-uuid}} with your Journey ID.
+#
+# Authentication:
+#   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
+#   - Alternative: use a manually pre-signed URL for short-term testing.
+#
+# Environment variables:
+#   RAPIDSPIKE_PROXY_URL     -> (Optional) your signed proxy endpoint base, e.g. https://proxy.example.com
+#   RAPIDSPIKE_BASE_URL      -> (Optional) defaults to https://api.rapidspike.com
+#   RAPIDSPIKE_PUBLIC_KEY    -> Your RapidSpike public key
+#   RAPIDSPIKE_PRIVATE_KEY   -> Your RapidSpike private key (used only by proxy or pre-sign script)
+
+receivers:
+  rapidspike_journey:
+
+    # Option 1 – Recommended: use a signed proxy that performs HMAC signing
+    endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/journeys/{{journey-uuid}}/loadtimes?days=1&scale=hours"
+
+    # Option 2 – Pre-signed URL (generated with your HMAC script):
+    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/journeys/{{journey-uuid}}/loadtimes?days=1&scale=hours&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+
+    method: GET
+    collection_interval: 5m
+
+    parsing:
+      json:
+        path: "data.load_times"
+        # data.load_times is an object of regions, so you'll want to flatten values
+        # Each region key (e.g., HongKongSeleniumHybrid) contains 'results'
+        # Each 'result' contains performance timings and element counts
+        metrics:
+          - name: rapidspike.journeyload.total_time_ms
+            type: gauge
+            value_field: "results[*].total_time"
+            attributes:
+              region: "region_data.label"
+              browser: "results[*].browser"
+          - name: rapidspike.journeyload.on_load_time_ms
+            type: gauge
+            value_field: "results[*].on_load_time"
+            attributes:
+              region: "region_data.label"
+              browser: "results[*].browser"
+          - name: rapidspike.journeyload.on_load_ms
+            type: gauge
+            value_field: "results[*].on_load"
+            attributes:
+              region: "region_data.label"
+              browser: "results[*].browser"
+          - name: rapidspike.journeyload.success
+            type: gauge
+            value_field: "results[*].success"
+            attributes:
+              region: "region_data.label"
+              browser: "results[*].browser"
+          - name: rapidspike.journeyload.error_count
+            type: gauge
+            value_field: "results[*].error_count"
+            attributes:
+              region: "region_data.label"
+              browser: "results[*].browser"
+          - name: rapidspike.journeyload.warning_count
+            type: gauge
+            value_field: "results[*].warning_count"
+            attributes:
+              region: "region_data.label"
+              browser: "results[*].browser"
+          - name: rapidspike.journeyload.elements_total_count
+            type: gauge
+            value_field: "results[*].elements_total_count"
+            attributes:
+              region: "region_data.label"
+              browser: "results[*].browser"
+          - name: rapidspike.journeyload.elements_total_size_kb
+            type: gauge
+            value_field: "results[*].elements_total_size"
+            attributes:
+              region: "region_data.label"
+              browser: "results[*].browser"
+
+    processors:
+      batch:
+        timeout: 30s
+      resourcedetection:
+        detectors: [ env, system ]
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:9464"
+      # Example alternate exporters:
+      # otlphttp:
+      #   endpoint: "https://otlp-gateway.grafana.net/otlp"
+      #   headers:
+      #     Authorization: "Bearer ${GRAFANA_CLOUD_API_KEY}"
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [ rapidspike_journey_loadtimes ]
+          processors: [ batch, resourcedetection ]
+          exporters: [ prometheus ]
