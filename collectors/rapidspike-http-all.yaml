@@ -1,0 +1,115 @@
+# RapidSpike HTTP Monitors -> All Monitor Live Status
+# -------------------------------------------
+# Fetches uptime and current HTTP monitor status for all websites in an account.
+#
+# Authentication:
+#   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
+#   - Alternative: use a manually pre-signed URL for short-term testing.
+#
+# Environment variables:
+#   RAPIDSPIKE_PROXY_URL     -> (Optional) your signed proxy endpoint base, e.g. https://proxy.example.com
+#   RAPIDSPIKE_BASE_URL      -> (Optional) defaults to https://api.rapidspike.com
+#   RAPIDSPIKE_PUBLIC_KEY    -> Your RapidSpike public key
+#   RAPIDSPIKE_PRIVATE_KEY   -> Your RapidSpike private key (used only by proxy or pre-sign script)
+
+receivers:
+  rapidspike_httpmon:
+
+    # Option 1 — Recommended: use a signed proxy that performs HMAC signing
+    endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/wallboards/http/websites/availability"
+
+    # Option 2 — Pre-Signed URL (generated with your HMAC script):
+    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/wallboards/http/websites/availability?public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+
+    method: GET
+    collection_interval: 60s
+
+    parsing:
+      json:
+        path: "data"
+        metrics:
+          - name: rapidspike.websites.total
+            type: sum
+            value_field: "uuid"
+            aggregation: count
+
+          - name: rapidspike.websites.with_monitors
+            type: sum
+            calculation: "len(monitors.http) > 0"
+            aggregation: sum
+
+          - name: rapidspike.websites.http_monitors_total
+            type: sum
+            calculation: "len(monitors.http)"
+            aggregation: sum
+
+          - name: rapidspike.websites.http_monitors_passing
+            type: sum
+            calculation: "len([m for m in monitors.http if m.current_status == 'passing'])"
+            aggregation: sum
+
+          - name: rapidspike.websites.http_monitors_failing
+            type: sum
+            calculation: "len([m for m in monitors.http if m.current_status == 'failing'])"
+            aggregation: sum
+
+          - name: rapidspike.websites.http_monitors_paused
+            type: sum
+            calculation: "len([m for m in monitors.http if m.paused])"
+            aggregation: sum
+
+          - name: rapidspike.websites.uptime_status
+            type: gauge
+            calculation: |
+              if any(m.current_status == 'failing' for m in monitors.http):
+                return 0
+              elif any(m.current_status == 'passing' for m in monitors.http):
+                return 1
+              else:
+                return -1
+            attributes:
+              website_uuid: "uuid"
+              website_label: "label"
+              domain_name: "domain_name"
+
+          - name: rapidspike.websites.pages
+            type: gauge
+            calculation: "len(monitors.http)"
+            attributes:
+              website_uuid: "uuid"
+              website_label: "label"
+              domain_name: "domain_name"
+
+          - name: rapidspike.websites.page_status
+            type: gauge
+            value_field: "monitors.http[].current_status"
+            mapping:
+              passing: 1
+              failing: 0
+            attributes:
+              website_uuid: "uuid"
+              website_label: "label"
+              page_label: "monitors.http[].page.label"
+              page_path: "monitors.http[].page.path"
+
+    processors:
+      batch:
+        timeout: 30s
+      resourcedetection:
+        detectors: [ env, system ]
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:9464"
+      # Optional OTLP exporter for remote ingestion:
+      # otlphttp:
+      #   endpoint: "https://otel.rapidspike.com/v1/metrics"
+      #   headers:
+      #     Authorization: "Bearer ${OTEL_API_KEY}"
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [ rapidspike_http_wallboard ]
+          processors: [ batch, resourcedetection ]
+          exporters: [ prometheus ]

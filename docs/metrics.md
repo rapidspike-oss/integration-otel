@@ -22,7 +22,7 @@ You can generate these values using your own script or proxy service. For detail
 
 ---
 
-## 🧭 HTTP Monitors
+## HTTP Monitors
 
 ### 1. Get One Monitor's results
 
@@ -83,7 +83,34 @@ Retrieves a list of monitor status changes (“passing”, “failing”), inclu
 
 ---
 
-## 🌐 Lighthouse Monitors
+### 4. Get All Monitors Live Status
+
+**Endpoint:**
+
+```GET /v1/wallboards/http/websites/availability```
+
+**Purpose:**  
+Retrieves a list of all monitors configured (by website) and their live status.
+
+### Metrics
+
+| Metric                                      | Type  | Description                                       | Attributes                                                 |
+| ------------------------------------------- | ----- | ------------------------------------------------- | ---------------------------------------------------------- |
+| `rapidspike.websites.total`                 | Sum   | Total number of websites in the account           | —                                                          |
+| `rapidspike.websites.with_monitors`         | Sum   | Websites that have at least one HTTP monitor      | —                                                          |
+| `rapidspike.websites.http_monitors_total`   | Sum   | Total number of HTTP monitors across all websites | —                                                          |
+| `rapidspike.websites.http_monitors_passing` | Sum   | Total number of passing HTTP monitors             | —                                                          |
+| `rapidspike.websites.http_monitors_failing` | Sum   | Total number of failing HTTP monitors             | —                                                          |
+| `rapidspike.websites.http_monitors_paused`  | Sum   | Total number of paused HTTP monitors              | —                                                          |
+| `rapidspike.websites.uptime_status`         | Gauge | Website health (1=passing, 0=failing, -1=unknown) | `website_uuid`, `website_label`, `domain_name`             |
+| `rapidspike.websites.pages`                 | Gauge | Number of HTTP pages monitored per website        | `website_uuid`, `website_label`, `domain_name`             |
+| `rapidspike.websites.page_status`           | Gauge | Page-level uptime (1=passing, 0=failing)          | `website_uuid`, `website_label`, `page_label`, `page_path` |
+
+**Typical Collection Interval:** Every 5 minutes.
+
+---
+
+## Lighthouse Monitors
 
 ### 1. Get One Monitor's Results
 
@@ -109,7 +136,7 @@ metrics.
 
 ---
 
-## 🧩 User Journeys
+## User Journeys
 
 ### 1. Get One Monitor's Results
 
@@ -148,7 +175,7 @@ counts.
 ```GET /v1/journeys/{{journey-uuid}}/loadtimes````
 
 **Purpose:**  
-Retrieves the
+Retrieves the load times for a single journey.
 
 | Metric                                          | Type  | Description                             | Attributes          |
 | ----------------------------------------------- | ----- | --------------------------------------- | ------------------- |
@@ -162,6 +189,106 @@ Retrieves the
 | `rapidspike.journeyload.elements_total_size_kb` | Gauge | Combined size of all page elements (kB) | `region`, `browser` |
 
 **Typical Collection Interval:** Every 60 minutes.
+
+---
+
+### 3. Get All Monitor Events
+
+**Endpoint:**
+
+```GET /v1/wallboards/journeys/events```
+
+**Purpose:**  
+Retrieves recent User Journey monitor events for an account, showing status changes and latest results.
+
+| Metric                                 | Type  | Description                                        | Attributes                         |
+| -------------------------------------- | ----- | -------------------------------------------------- | ---------------------------------- |
+| `rapidspike.journeys.total_journeys`   | Sum   | Total number of monitored journeys                 | —                                  |
+| `rapidspike.journeys.total_events`     | Sum   | Number of journey event entries in the time window | —                                  |
+| `rapidspike.journeys.passing_count`    | Sum   | Number of journeys currently passing               | —                                  |
+| `rapidspike.journeys.failing_count`    | Sum   | Number of journeys currently failing               | —                                  |
+| `rapidspike.journeys.error_count`      | Sum   | Number of journeys with active errors              | —                                  |
+| `rapidspike.journeys.warning_count`    | Sum   | Number of journeys with warnings                   | —                                  |
+| `rapidspike.journeys.duration_seconds` | Gauge | Duration of the journey’s event period (seconds)   | `journey_uuid`, `label`, `website` |
+| `rapidspike.journeys.latest_status`    | Gauge | `1=passing`, `0=failing`, `-1=unknown`             | `journey_uuid`, `label`, `website` |
+| `rapidspike.journeys.avg_total_time`   | Gauge | Journey test runtime (ms)                          | `journey_uuid`, `label`, `region`  |
+
+**Typical Collection Interval:** Every 5 minutes.
+
+--
+
+## Websites
+
+### 1. Get One Monitor's Stats
+
+**Endpoint:**
+
+```GET /v1/websites/{{website-uuid}}/stats```
+
+**Purpose:**  
+Provides high-level website uptime and monitor statistics.
+
+### Metrics
+
+| Metric                                            | Type  | Description                                                          | Attributes |
+| ------------------------------------------------- | ----- | -------------------------------------------------------------------- | ---------- |
+| `rapidspike.website.total_monitors`               | Gauge | Total number of monitors under this website                          | —          |
+| `rapidspike.website.passing_monitors`             | Gauge | Number of monitors passing                                           | —          |
+| `rapidspike.website.failing_monitors`             | Gauge | Number of monitors failing                                           | —          |
+| `rapidspike.website.average_response_ms`          | Gauge | Average response time across monitors                                | —          |
+| `rapidspike.website.average_uptime_percentage`    | Gauge | Average uptime %                                                     | —          |
+| `rapidspike.website.total_status_changes`         | Sum   | Total number of monitor status changes                               | —          |
+| `rapidspike.website.total_events`                 | Sum   | Total number of monitor events                                       | —          |
+| `rapidspike.website.time_since_last_change_hours` | Gauge | Time since last status change (hours)                                | `date`     |
+| `rapidspike.website.status_state`                 | Gauge | Website state (`1 = all_passing`, `0 = has_failing`, `-1 = unknown`) | —          |
+
+**Typical Collection Interval:** Every 15 minutes.
+
+## Sitemaps
+
+### 1. Get One Sitemap's Tests
+
+**Endpoint:**
+
+```GET /v1/bulkurlmonitor/{{bulk-url-uuid}}/tests```
+
+**Purpose:**  
+Retrieves recent Bulk URL (sitemap) test results, including total and tested URLs per region.
+
+### Metrics
+
+| Metric                                    | Type  | Description                                        | Attributes                              |
+| ----------------------------------------- | ----- | -------------------------------------------------- | --------------------------------------- |
+| `rapidspike.bulkurl.total_potential_urls` | Gauge | Number of URLs discovered in sitemap               | `region`, `region_code`, `created_date` |
+| `rapidspike.bulkurl.total_tested_urls`    | Gauge | Number of URLs successfully tested                 | `region`, `region_code`, `created_date` |
+| `rapidspike.bulkurl.test_coverage_ratio`  | Gauge | Ratio of tested URLs to total potential URLs (0–1) | `region`, `region_code`, `created_date` |
+| `rapidspike.bulkurl.test_runs`            | Sum   | Total number of test runs recorded                 | `region`, `region_code`                 |
+
+**Typical Collection Interval:** Every 24 hours.
+
+### 2. Get One Sitemap's Test Result
+
+**Endpoint:**
+
+```GET /v1/bulkurlmonitor/{{bulk-url-uuid}}/tests/{{test-uuid}}```
+
+**Purpose:**  
+Fetches detailed URL-level test results, including response codes and timings for each page in the sitemap.
+
+### Metrics
+
+| Metric                                | Type  | Description                                  | Attributes                                                   |
+| ------------------------------------- | ----- | -------------------------------------------- | ------------------------------------------------------------ |
+| `rapidspike.bulkurl.response_time_ms` | Gauge | Response time in milliseconds per tested URL | `region`, `region_code`, `url`, `response_code`, `unix_time` |
+| `rapidspike.bulkurl.response_code`    | Gauge | HTTP response code per tested URL            | `region`, `region_code`, `url`, `unix_time`                  |
+| `rapidspike.bulkurl.url_count`        | Sum   | Number of URLs tested                        | `region`, `region_code`                                      |
+| `rapidspike.bulkurl.failed_responses` | Sum   | Count of failed responses (≥400)             | `region`, `region_code`                                      |
+
+**Typical Collection Interval:** Every 24 hours.
+
+
+
+
 
 
 ---

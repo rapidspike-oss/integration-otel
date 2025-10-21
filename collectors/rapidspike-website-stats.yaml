@@ -1,0 +1,92 @@
+# RapidSpike Website Stats -> One Website High-Level Stats
+# -------------------------------------------
+# Fetches aggregated uptime and monitor statistics for a specific website.
+# Replace {{website-uuid}} with your Website ID.
+#
+# Authentication:
+#   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
+#   - Alternative: use a manually pre-signed URL for short-term testing.
+#
+# Environment variables:
+#   RAPIDSPIKE_PROXY_URL     -> (Optional) your signed proxy endpoint base, e.g. https://proxy.example.com
+#   RAPIDSPIKE_BASE_URL      -> (Optional) defaults to https://api.rapidspike.com
+#   RAPIDSPIKE_PUBLIC_KEY    -> Your RapidSpike public key
+#   RAPIDSPIKE_PRIVATE_KEY   -> Your RapidSpike private key (used only by proxy or pre-sign script)
+
+receivers:
+  rapidspike_website_stats:
+
+    # Option 1 — Recommended: use a signed proxy that performs HMAC signing
+    # endpoint: "https://proxy.yourdomain.com/website/stats?stats=total_monitors,pending_monitors,passing_monitors,failing_monitors,paused_monitors,status,average_response,average_uptime_percentage,time_since_last_status_change,total_status_changes,total_events,longest_outage"
+
+    # Option 2 — Pre-Signed URL (generated with your HMAC script):
+    endpoint: "${RAPIDSPIKE_BASE_URL}/v1/websites/{{website-uuid}}/stats?stats=total_monitors,pending_monitors,passing_monitors,failing_monitors,paused_monitors,status,average_response,average_uptime_percentage,time_since_last_status_change,total_status_changes,total_events,longest_outage&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+
+    method: GET
+    collection_interval: 15m
+
+    parsing:
+      json:
+        path: "data.stats"
+        metrics:
+          - name: rapidspike.website.total_monitors
+            type: gauge
+            value_field: "total_monitors"
+          - name: rapidspike.website.pending_monitors
+            type: gauge
+            value_field: "pending_monitors"
+          - name: rapidspike.website.passing_monitors
+            type: gauge
+            value_field: "passing_monitors"
+          - name: rapidspike.website.failing_monitors
+            type: gauge
+            value_field: "failing_monitors"
+          - name: rapidspike.website.paused_monitors
+            type: gauge
+            value_field: "paused_monitors"
+          - name: rapidspike.website.average_response_ms
+            type: gauge
+            value_field: "average_response"
+          - name: rapidspike.website.average_uptime_percentage
+            type: gauge
+            value_field: "average_uptime_percentage"
+          - name: rapidspike.website.total_status_changes
+            type: sum
+            value_field: "total_status_changes"
+          - name: rapidspike.website.total_events
+            type: sum
+            value_field: "total_events"
+          - name: rapidspike.website.time_since_last_change_hours
+            type: gauge
+            value_field: "time_since_last_status_change.hours"
+            attributes:
+              date: "time_since_last_status_change.date"
+          - name: rapidspike.website.status_state
+            type: gauge
+            value_field: "status"
+            mapping:
+              has_failing: 0
+              all_passing: 1
+              unknown: -1
+
+processors:
+  batch:
+    timeout: 30s
+  resourcedetection:
+    detectors: [ env, system ]
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:9464"
+  # Example alternate exporters:
+  # otlphttp:
+  #   endpoint: "https://otlp-gateway.grafana.net/otlp"
+  #   headers:
+  #     Authorization: "Bearer ${GRAFANA_CLOUD_API_KEY}"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [ rapidspike_website_stats ]
+      processors: [ batch, resourcedetection ]
+      exporters: [ prometheus ]

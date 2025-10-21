@@ -1,0 +1,99 @@
+# RapidSpike User Journey -> All Journey Events
+# -------------------------------------------
+# Fetches recent status change events for all user journeys in an account.
+#
+# Authentication:
+#   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
+#   - Alternative: use a manually pre-signed URL for short-term testing.
+#
+# Environment variables:
+#   RAPIDSPIKE_PROXY_URL     -> (Optional) your signed proxy endpoint base, e.g. https://proxy.example.com
+#   RAPIDSPIKE_BASE_URL      -> (Optional) defaults to https://api.rapidspike.com
+#   RAPIDSPIKE_PUBLIC_KEY    -> Your RapidSpike public key
+#   RAPIDSPIKE_PRIVATE_KEY   -> Your RapidSpike private key (used only by proxy or pre-sign script)
+
+receivers:
+  rapidspike_journey:
+
+    # Option 1 – Recommended: use a signed proxy that performs HMAC signing
+    endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/wallboards/journeys/events?hours=3&per_page=20&page=1&type=journeys"
+
+    # Option 2 – Pre-signed URL (generated with your HMAC script):
+    # endpoint: "${RAPIDSPIKE_BASE_URL}/v1/wallboards/journeys/events?hours=3&per_page=20&page=1&type=journeys&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+
+    method: GET
+    collection_interval: 5m
+
+    parsing:
+      json:
+        path: "data.journeys"
+        metrics:
+          - name: rapidspike.journeys.total_journeys
+            type: sum
+            value_field: "uuid"
+            aggregation: count
+          - name: rapidspike.journeys.total_events
+            type: sum
+            value_field: "events"
+            aggregation: count
+          - name: rapidspike.journeys.passing_count
+            type: sum
+            calculation: "len([e for e in events if 'passing' in e.class])"
+          - name: rapidspike.journeys.failing_count
+            type: sum
+            calculation: "len([e for e in events if 'failing' in e.class])"
+          - name: rapidspike.journeys.error_count
+            type: sum
+            calculation: "len([e for e in events if 'error' in e.class])"
+          - name: rapidspike.journeys.warning_count
+            type: sum
+            calculation: "len([e for e in events if 'warning' in e.class])"
+          - name: rapidspike.journeys.duration_seconds
+            type: gauge
+            value_field: "events[0].duration_seconds"
+            attributes:
+              journey_uuid: "uuid"
+              label: "label"
+              website: "website.label"
+          - name: rapidspike.journeys.latest_status
+            type: gauge
+            calculation: |
+              if any('failing' in e.class for e in events):
+                return 0
+              elif any('passing' in e.class for e in events):
+                return 1
+              else:
+                return -1
+            attributes:
+              journey_uuid: "uuid"
+              label: "label"
+              website: "website.label"
+          - name: rapidspike.journeys.avg_total_time
+            type: gauge
+            value_field: "latest_result.total_time"
+            attributes:
+              journey_uuid: "uuid"
+              label: "label"
+              region: "latest_result.region.label"
+
+    processors:
+      batch:
+        timeout: 30s
+      resourcedetection:
+        detectors: [ env, system ]
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:9464"
+      # Example alternate exporters:
+      # otlphttp:
+      #   endpoint: "https://otlp-gateway.grafana.net/otlp"
+      #   headers:
+      #     Authorization: "Bearer ${GRAFANA_CLOUD_API_KEY}"
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [ rapidspike_journeys_events ]
+          processors: [ batch, resourcedetection ]
+          exporters: [ prometheus ]

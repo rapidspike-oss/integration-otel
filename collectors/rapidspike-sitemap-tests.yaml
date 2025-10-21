@@ -1,0 +1,80 @@
+# RapidSpike Sitemaps -> One Sitemap Tests
+# -------------------------------------------
+# Fetches recent sitemap test results for a Bulk URL (sitemap) monitor.
+# Replace {{bulk-url-uuid}} with your sitemap ID.
+#
+# Authentication:
+#   - Recommended: use a signed proxy endpoint that performs HMAC signing on your behalf.
+#   - Alternative: use a manually pre-signed URL for short-term testing.
+#
+# Environment variables:
+#   RAPIDSPIKE_PROXY_URL     -> (Optional) your signed proxy endpoint base, e.g. https://proxy.example.com
+#   RAPIDSPIKE_BASE_URL      -> (Optional) defaults to https://api.rapidspike.com
+#   RAPIDSPIKE_PUBLIC_KEY    -> Your RapidSpike public key
+#   RAPIDSPIKE_PRIVATE_KEY   -> Your RapidSpike private key (used only by proxy or pre-sign script)
+
+receivers:
+  rapidspike_journey:
+
+    # Option 1 – Recommended: use a signed proxy that performs HMAC signing
+    endpoint: "${RAPIDSPIKE_PROXY_URL}/v1/bulkurlmonitor/{{bulk-url-uuid}}/tests?start_date=7%20days%20ago&end_date=today&sort_by=created_date&order=desc&filter_by_regions=eu-west-2,eu-west-1&per_page=25&page=1"
+
+    # Option 2 – Pre-signed URL (generated with your HMAC script):
+    #endpoint: "${RAPIDSPIKE_BASE_URL}/v1/bulkurlmonitor/{{bulk-url-uuid}}/tests?start_date=7%20days%20ago&end_date=today&sort_by=created_date&order=desc&filter_by_regions=eu-west-2,eu-west-1&per_page=25&page=1&public_key=${RAPIDSPIKE_PUBLIC_KEY}&time=${RAPIDSPIKE_TIME}&signature=${RAPIDSPIKE_SIGNATURE}"
+
+    method: GET
+      collection_interval: 24h
+      parsing:
+        json:
+          path: "data.items"
+          metrics:
+            - name: rapidspike.bulkurl.total_potential_urls
+              type: gauge
+              value_field: "total_potential_urls"
+              attributes:
+                region: "region.location"
+                region_code: "region.token"
+                created_date: "created_date"
+            - name: rapidspike.bulkurl.total_tested_urls
+              type: gauge
+              value_field: "total_tested_urls"
+              attributes:
+                region: "region.location"
+                region_code: "region.token"
+                created_date: "created_date"
+            - name: rapidspike.bulkurl.test_coverage_ratio
+              type: gauge
+              calculation: "total_tested_urls / total_potential_urls"
+              attributes:
+                region: "region.location"
+                region_code: "region.token"
+                created_date: "created_date"
+            - name: rapidspike.bulkurl.test_runs
+              type: sum
+              value_field: "uuid"
+              aggregation: count
+              attributes:
+                region: "region.location"
+                region_code: "region.token"
+
+    processors:
+      batch:
+        timeout: 30s
+      resourcedetection:
+        detectors: [ env, system ]
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:9464"
+      # Example alternate exporters:
+      # otlphttp:
+      #   endpoint: "https://otlp-gateway.grafana.net/otlp"
+      #   headers:
+      #     Authorization: "Bearer ${GRAFANA_CLOUD_API_KEY}"
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [ rapidspike_bulkurlmonitor ]
+          processors: [ batch, resourcedetection ]
+          exporters: [ prometheus ]
